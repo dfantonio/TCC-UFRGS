@@ -8,3 +8,10 @@
 Drivers/*
 Core/tmp/*
 Makefile
+compile_commands.json
+
+# Arm_math
+Middlewares/*
+
+# CubeMX
+.mxproject
