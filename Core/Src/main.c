@@ -23,10 +23,10 @@
 #include "tim.h"
 #include "usart.h"
 #include "gpio.h"
-
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "rede_neural.h"
+#include "arm_math.h"
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -79,6 +79,13 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
+  q15_t buffer_rms[ADC_BUF_LEN] = {3000};
+  q15_t rms_value = 0;
+
+  for (int i = 0; i < ADC_BUF_LEN; i++)
+  {
+    buffer_rms[i] = -3000;
+  }
 
   /* USER CODE END Init */
 
@@ -100,7 +107,17 @@ int main(void)
   HAL_TIM_Base_Start(&htim2);
   HAL_ADC_Start_DMA(&hadc1, (uint32_t *)adc_buf, ADC_BUF_LEN);
 
-  // if (HAL_ADC_Start_IT(&hadc1) != HAL_OK)
+  arm_rms_q15(buffer_rms, ADC_BUF_LEN, &rms_value); // Calcula o RMS
+
+  if (rms_value > 0)
+  {
+    HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_SET);
+  }
+
+  // arm_rfft_fast_instance_f32 fft_instance;
+  // arm_rfft_fast_init_f32(&fft_instance, ADC_BUF_LEN);
+  // arm_rfft_fast_f32(&fft_instance, buffer_rms, buffer_rms, 0);
+
   //   Error_Handler();
 
   /* USER CODE END 2 */
@@ -108,19 +125,15 @@ int main(void)
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 
-  char rx_buff[64] = {0};
-  char tx_buff[32] = {0}; // Aumentei o tamanho para caber mensagem maior
-  uint16_t adc_value = 0;
-
   while (1)
   {
-    // Inicia conversï¿½o ADC
+    // Inicia conversão ADC
     // HAL_ADC_Start(&hadc1);
 
-    // Espera conversï¿½o completar
+    // Espera conversão completar
     // if (HAL_ADC_PollForConversion(&hadc1, 100) == HAL_OK)
     // {
-    //   // Lï¿½ valor do ADC
+    //   // Lê valor do ADC
     //   adc_value = HAL_ADC_GetValue(&hadc1);
 
     //   // Formata mensagem
@@ -134,7 +147,7 @@ int main(void)
     // // Desliga ADC para economizar energia
     // HAL_ADC_Stop(&hadc1);
 
-    // // Aguarda 500ms antes da prï¿½xima leitura
+    // // Aguarda 500ms antes da próxima leitura
     // HAL_Delay(5);
     // HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
 
@@ -201,7 +214,7 @@ void HAL_ADC_ConvHalfCpltCallback(ADC_HandleTypeDef *hadc)
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
 {
   // HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
-  HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
+  // HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
 }
 
 /* USER CODE END 4 */
