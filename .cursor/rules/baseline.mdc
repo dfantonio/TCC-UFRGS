@@ -1,0 +1,35 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# 🧠 Regra para Cursor IDE
+
+Este projeto é um **Analisador de Qualidade de Energia** baseado no microcontrolador **STM32F411RE**, utilizando dois canais do ADC para capturar sinais de **tensão** e **corrente**.
+
+## ✅ Objetivos da IDE Cursor:
+1. **Auxiliar na organização modular do código**:
+   - Separar arquivos por responsabilidade: aquisição de dados, processamento de sinais, comunicação, etc.
+
+2. **Ajudar na configuração e geração de código base HAL/LL**:
+   - Configurar ADCs em modo DMA.
+   - Criar timers para controlar a frequência de amostragem (ex: 10 kHz).
+   - Definir buffers e interrupções corretamente.
+
+3. **Facilitar o desenvolvimento de algoritmos de DSP**:
+   - RMS, THD, Fator de Potência, FFT (usando CMSIS-DSP).
+   - Calcular potência ativa, reativa e aparente.
+
+4. **Gerenciar a comunicação de dados**:
+   - Implementar saída via UART ou USB (CDC).
+   - Suportar comandos simples via terminal (opcional).
+
+5. **Auxiliar no debug e simulação com variáveis**:
+   - Ajudar a visualizar buffers, transformadas e resultados calculados.
+
+## 💡 Regras Específicas para o assistente:
+- Sempre priorize **eficiência e organização** no código.
+- Utilize **HAL ou LL drivers**, mas evite dependência do STM32CubeMX após configuração inicial.
+- Comente e documente bem funções que envolvem matemática ou manipulação de buffers.
+- Sugira melhorias se algum trecho de código estiver com baixa performance, imprecisão ou violar boas práticas embarcadas.
+

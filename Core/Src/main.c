@@ -26,17 +26,30 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "arm_math.h"
+#include "signal_processing.h"
+#include <stdbool.h>
 
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
 
+/**
+ * Coisas para pensar:
+ * - Como remover o offset do sinal de forma dinÃ¢mica, ao invÃ©s de subtrair um valor fixo?
+ */
+
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define ADC_BUF_LEN 4096
+// TODO: Deve ser 4000
+#define ADC_BUF_LEN 4000
+// #define ADC_BUF_LEN 100
+
+// TODO: Deve ser 2048
+#define FFT_LENGTH 2048
+// #define FFT_LENGTH 64
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -47,13 +60,20 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-uint16_t adc_buf[ADC_BUF_LEN];
+uint16_t adc_buf[ADC_BUF_LEN] = {0};
 
+arm_rfft_instance_q15 fft_instance;
+
+q15_t fft_result[FFT_LENGTH] = {0};
+
+q15_t fft_out_q15[FFT_LENGTH * 2];
+q15_t fft_mag_q15[FFT_LENGTH / 2];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
+void getPowerMetrics(_Bool firstHalf);
 
 /* USER CODE END PFP */
 
@@ -69,6 +89,12 @@ void SystemClock_Config(void);
 int main(void) {
 
   /* USER CODE BEGIN 1 */
+  // Inicializa a FPU
+  SCB->CPACR |= ((3UL << 10 * 2) | (3UL << 11 * 2));  // Habilita CP10 e CP11 (FPU)
+
+  CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+  DWT->CYCCNT = 0;
+  DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
 
   /* USER CODE END 1 */
 
@@ -79,12 +105,13 @@ int main(void) {
   HAL_Init();
 
   /* USER CODE BEGIN Init */
-  q15_t buffer_rms[ADC_BUF_LEN] = {3000};
-  q15_t rms_value = 0;
+  // volatile uint32_t start_cycles = DWT->CYCCNT;
+  // volatile uint32_t elapsed_cycles = DWT->CYCCNT - start_cycles;
 
-  for (int i = 0; i < ADC_BUF_LEN; i++) {
-    buffer_rms[i] = -3000;
-  }
+  // q15_t buffer_rms[ADC_BUF_LEN] = {0};
+  // for (int i = 0; i < ADC_BUF_LEN; i++) {
+  //   buffer_rms[i] = convert_adc_to_q15(adc_buf[i]);
+  // }
 
   /* USER CODE END Init */
 
@@ -93,7 +120,7 @@ int main(void) {
 
   /* USER CODE BEGIN SysInit */
 
-  // TODO: Mover a inicialização do DMA para depois da configuração do
+  // TODO: Mover a inicializaÃ§Ã£o do DMA para depois da configuraÃ§Ã£o do
   // ADC
   /* USER CODE END SysInit */
 
@@ -104,34 +131,79 @@ int main(void) {
   MX_ADC1_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
-  HAL_TIM_Base_Start(&htim2);
-  HAL_ADC_Start_DMA(&hadc1, (uint32_t *)adc_buf, ADC_BUF_LEN);
 
-  arm_rms_q15(buffer_rms, ADC_BUF_LEN, &rms_value);  // Calcula o RMS
+  // arm_rfft_fast_init_f32(&fft_instance, FFT_LENGTH);
 
-  if (rms_value > 0) {
-    HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_SET);
-  }
+  arm_rfft_init_q15(&fft_instance, FFT_LENGTH, 0, 1);
+
+  // HAL_TIM_Base_Start(&htim2);
+  // HAL_ADC_Start_DMA(&hadc1, (uint32_t *)adc_buf, ADC_BUF_LEN);
 
   // arm_rfft_fast_instance_f32 fft_instance;
   // arm_rfft_fast_init_f32(&fft_instance, ADC_BUF_LEN);
   // arm_rfft_fast_f32(&fft_instance, buffer_rms, buffer_rms, 0);
 
-  //   Error_Handler();
+  // float rms_value_float = calculate_voltage_rms(buffer_rms, ADC_BUF_LEN);
+
+  // if (rms_value_float > 0) {
+  //   HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_SET);
+  // }
+
+  // getPowerMetrics(true);
+  // getPowerMetrics(false);
 
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 
+  uint32_t start, stop, cycles_float, cycles_q15;
+
+  float32_t srcA_f32[FFT_LENGTH];
+  float32_t srcB_f32[FFT_LENGTH];
+  float32_t dst_f32[FFT_LENGTH];
+  float32_t rms_f32;
+
+  q15_t srcA_q15[FFT_LENGTH];
+  q15_t srcB_q15[FFT_LENGTH];
+  q15_t dst_q15[FFT_LENGTH];
+  q15_t rms_q15;
+
+  // Preencha os vetores com dados de teste
+  for (int i = 0; i < FFT_LENGTH; i++) {
+    srcA_f32[i] = arm_sin_f32(2 * PI * i / FFT_LENGTH);
+    srcB_f32[i] = arm_cos_f32(2 * PI * i / FFT_LENGTH);
+  }
+  // Converta para Q15
+  arm_float_to_q15(srcA_f32, srcA_q15, FFT_LENGTH);
+  arm_float_to_q15(srcB_f32, srcB_q15, FFT_LENGTH);
+
+  // --- Benchmark FLOAT ---
+  start = DWT->CYCCNT;
+  arm_mult_f32(srcA_f32, srcB_f32, dst_f32, FFT_LENGTH);
+  arm_rms_f32(dst_f32, FFT_LENGTH, &rms_f32);
+  stop = DWT->CYCCNT;
+  cycles_float = stop - start;
+
+  // --- Benchmark Q15 ---
+  start = DWT->CYCCNT;
+  arm_mult_q15(srcA_q15, srcB_q15, dst_q15, FFT_LENGTH);
+  arm_rms_q15(dst_q15, FFT_LENGTH, &rms_q15);
+  stop = DWT->CYCCNT;
+  cycles_q15 = stop - start;
+
+  // Resultado: envie por UART, debugger, etc.
+  printf("FLOAT: %lu ciclos, resultado RMS: %f\r\n", cycles_float, rms_f32);
+  printf("Q15:   %lu ciclos, resultado RMS: %d\r\n", cycles_q15, rms_q15);
+
   while (1) {
-    // Inicia conversão ADC
+    // Inicia conversÃ£o ADC
     // HAL_ADC_Start(&hadc1);
 
-    // Espera conversão completar
+    // Espera conversÃ£o completar
     // if (HAL_ADC_PollForConversion(&hadc1, 100) == HAL_OK)
     // {
-    //   // Lê valor do ADC
+    //   // LÃª valor do ADC
     //   adc_value = HAL_ADC_GetValue(&hadc1);
 
     //   // Formata mensagem
@@ -145,7 +217,7 @@ int main(void) {
     // // Desliga ADC para economizar energia
     // HAL_ADC_Stop(&hadc1);
 
-    // // Aguarda 500ms antes da próxima leitura
+    // // Aguarda 500ms antes da prÃ³xima leitura
     // HAL_Delay(5);
     // HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
 
@@ -202,13 +274,47 @@ void SystemClock_Config(void) {
 /* USER CODE BEGIN 4 */
 
 void HAL_ADC_ConvHalfCpltCallback(ADC_HandleTypeDef *hadc) {
-  // HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_SET);
+  getPowerMetrics(true);
 }
 
 // Called when buffer is completely filled
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc) {
-  // HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
-  // HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
+  getPowerMetrics(false);
+}
+
+void getPowerMetrics(_Bool firstHalf) {
+  int maxLength = ADC_BUF_LEN / 2;
+
+  // Converts to Q15
+  q15_t buffer_rms[FFT_LENGTH] = {0};
+  for (int i = 0; i < FFT_LENGTH; i++) {
+    if (firstHalf) {
+      if (i >= maxLength) {
+        buffer_rms[i] = 0;
+      } else {
+        buffer_rms[i] = convert_adc_to_q15(adc_buf[i]);
+      }
+    } else {
+      if (i >= maxLength) {
+        buffer_rms[i] = 0;
+      } else {
+        buffer_rms[i] = convert_adc_to_q15(adc_buf[i + maxLength]);
+      }
+    }
+  }
+
+  // FFT - Modifica o array de entrada
+  arm_rfft_q15(&fft_instance, buffer_rms, fft_out_q15);
+  arm_cmplx_mag_q15(fft_out_q15, fft_mag_q15, FFT_LENGTH / 2);
+
+  volatile q15_t teste[100] = {0};
+
+  for (int i = 0; i < 100; i++) {
+    teste[i] = fft_mag_q15[i];
+  }
+
+  // Calculates RMS
+  volatile float rms_value_float = calculate_voltage_rms(buffer_rms, maxLength);
 }
 
 /* USER CODE END 4 */
