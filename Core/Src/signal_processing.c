@@ -31,12 +31,11 @@ void apply_hanning_window(float32_t *buffer, uint32_t length) {
 }
 
 float32_t calculate_voltage_rms(float32_t *buffer, uint32_t length) {
-  // Aplica janelamento antes do cálculo RMS
-  // apply_hanning_window(buffer, length);
+  volatile static const float32_t scale_factor = 1.00f;
 
   float32_t rms_value;
   arm_rms_f32(buffer, length, &rms_value);
-  return rms_value;
+  return rms_value * scale_factor;
 }
 
 float32_t calculate_current_rms(float32_t *buffer, uint32_t length) {
@@ -50,6 +49,14 @@ Power_Results_t calculate_power(float32_t *voltage_buffer, float32_t *current_bu
   Power_Results_t results = {0};
   // TODO: Implementar cálculos de potência
   return results;
+}
+
+void calculate_fft(arm_rfft_fast_instance_f32 *fft_instance, float32_t *arr_in, float32_t *arr_temp,
+                   float32_t *arr_out_mag, uint32_t length) {
+  apply_hanning_window(arr_in, length);
+
+  arm_rfft_fast_f32(fft_instance, arr_in, arr_temp, 0);
+  arm_cmplx_mag_f32(arr_temp, arr_out_mag, length);
 }
 
 float32_t calculate_voltage_thd(float32_t *buffer, uint32_t length) {

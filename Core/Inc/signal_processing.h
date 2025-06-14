@@ -39,4 +39,15 @@ float32_t calculate_current_thd(float32_t *buffer, uint32_t length);
 Quality_Results_t calculate_quality_parameters(float32_t *voltage_buffer, float32_t *current_buffer,
                                                uint32_t length);
 
+/**
+ * @brief Calcula a FFT de um sinal
+ * @param fft_instance Ponteiro para a instância da FFT
+ * @param arr_in Ponteiro para o sinal de entrada
+ * @param arr_temp Ponteiro para o sinal temporário
+ * @param arr_out_mag Ponteiro para o sinal de saída
+ * @param length Tamanho do sinal
+ */
+void calculate_fft(arm_rfft_fast_instance_f32 *fft_instance, float32_t *arr_in, float32_t *arr_temp,
+                   float32_t *arr_out_mag, uint32_t length);
+
 #endif /* __SIGNAL_PROCESSING_H */
