@@ -5,7 +5,17 @@
 
 float32_t convert_adc_to_float(uint16_t adc_value) {
   // Converte diretamente para float, removendo o offset
-  return (float32_t)(adc_value - ADC_OFFSET) / (float32_t)ADC_MAX;
+  return (float32_t)((adc_value) / (float32_t)ADC_MAX) * 3.3f;
+}
+
+void remove_offset(float32_t *buffer, uint32_t length) {
+  float32_t sum = 0;
+  for (uint32_t i = 0; i < length; i++) {
+    sum += buffer[i];
+  }
+  float32_t offset = -sum / length;
+
+  arm_offset_f32(buffer, offset, buffer, length);
 }
 
 void apply_hanning_window(float32_t *buffer, uint32_t length) {
@@ -22,7 +32,7 @@ void apply_hanning_window(float32_t *buffer, uint32_t length) {
 
 float32_t calculate_voltage_rms(float32_t *buffer, uint32_t length) {
   // Aplica janelamento antes do cálculo RMS
-  apply_hanning_window(buffer, length);
+  // apply_hanning_window(buffer, length);
 
   float32_t rms_value;
   arm_rms_f32(buffer, length, &rms_value);

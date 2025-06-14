@@ -24,6 +24,8 @@ typedef struct {
 // Funções de conversão
 float32_t convert_adc_to_float(uint16_t adc_value);
 
+void remove_offset(float32_t *buffer, uint32_t length);
+
 // Funções de processamento de sinal
 void apply_hanning_window(float32_t *buffer, uint32_t length);
 

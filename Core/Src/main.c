@@ -34,11 +34,6 @@
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
 
-/**
- * Coisas para pensar:
- * - Como remover o offset do sinal de forma dinâmica, ao invés de subtrair um valor fixo?
- */
-
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -67,7 +62,7 @@ uint16_t adc_buf[ADC_BUF_LEN] = {
     845,  1062, 1294, 1539, 1791, 2048, 2305, 2557, 2802, 3034, 3251, 3450, 3626, 3777, 3901,
     3995, 4059, 4091, 4091, 4059, 3995, 3901, 3777, 3626, 3450, 3251, 3034, 2802, 2557, 2305,
     2048, 1791, 1539, 1294, 1062, 845,  646,  470,  319,  195,  101,  37,   5,    5,    37,
-    101,  195,  319,  470,  646,  845,  1062, 1294, 1539, 1791, 2048,
+    101,  195,  319,  470,  646,  845,  1062, 1294, 1539, 1791,
 };
 
 arm_rfft_fast_instance_f32 fft_instance;
@@ -141,21 +136,8 @@ int main(void) {
 
   arm_rfft_fast_init_f32(&fft_instance, FFT_LENGTH);
 
-  // HAL_TIM_Base_Start(&htim2);
-  // HAL_ADC_Start_DMA(&hadc1, (uint32_t *)adc_buf, ADC_BUF_LEN);
-
-  // arm_rfft_fast_instance_f32 fft_instance;
-  // arm_rfft_fast_init_f32(&fft_instance, ADC_BUF_LEN);
-  // arm_rfft_fast_f32(&fft_instance, buffer_rms, buffer_rms, 0);
-
-  // float rms_value_float = calculate_voltage_rms(buffer_rms, ADC_BUF_LEN);
-
-  // if (rms_value_float > 0) {
-  //   HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_SET);
-  // }
-
-  // getPowerMetrics(true);
-  // getPowerMetrics(false);
+  getPowerMetrics(true);
+  getPowerMetrics(false);
 
   /* USER CODE END 2 */
 
@@ -268,10 +250,13 @@ void getPowerMetrics(_Bool firstHalf) {
       }
     }
   }
+  // arm_offset_f32(buffer_rms, maxLength, buffer_rms, -1.0f);
+
+  remove_offset(buffer_rms, maxLength);
 
   // FFT - Modifica o array de entrada
-  arm_rfft_fast_f32(&fft_instance, buffer_rms, fft_out, 0);
-  arm_cmplx_mag_f32(fft_out, fft_mag, FFT_LENGTH / 2);
+  // arm_rfft_fast_f32(&fft_instance, buffer_rms, fft_out, 0);
+  // arm_cmplx_mag_f32(fft_out, fft_mag, FFT_LENGTH / 2);
 
   // Calcula RMS
   volatile float32_t rms_value = calculate_voltage_rms(buffer_rms, maxLength);
