@@ -61,11 +61,11 @@ void calculate_fft(arm_rfft_fast_instance_f32 *fft_instance, float32_t *arr_in, 
   float32_t harmonics[50] = {0};
 
   // Calculates the amplitudes of the first 50 harmonics.
-  int basicOffset = 12;
   for (uint32_t i = 1; i <= 50; i++) {
-    harmonics[i - 1] = arr_out_mag[basicOffset * i - 2] + arr_out_mag[basicOffset * i - 1] +
-                       arr_out_mag[basicOffset * i] + arr_out_mag[basicOffset * i + 1] +
-                       arr_out_mag[basicOffset * i + 2];
+    int idx = 60 * i / 4.88;
+
+    harmonics[i - 1] = arr_out_mag[idx - 2] + arr_out_mag[idx - 1] + arr_out_mag[idx] +
+                       arr_out_mag[idx + 1] + arr_out_mag[idx + 2];
   }
 
   calculate_voltage_thd(harmonics, 50);
@@ -88,7 +88,7 @@ float32_t calculate_thd(float32_t harmonics[], float32_t thd_n[], uint32_t lengt
 }
 
 float32_t calculate_voltage_thd(float32_t *harmonics, uint32_t length) {
-  float32_t thd_n[50] = {0};
+  float32_t thd_n[50] = {1};
   float32_t total_thd = calculate_thd(harmonics, thd_n, 50);
 
   return total_thd;
