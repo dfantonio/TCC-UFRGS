@@ -44,11 +44,11 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 // TODO: Deve ser 4000
-#define ADC_BUF_LEN 4000
+#define ADC_BUF_LEN 100
 // #define ADC_BUF_LEN 100
 
 // TODO: Deve ser 2048
-#define FFT_LENGTH 2048
+#define FFT_LENGTH 64
 // #define FFT_LENGTH 64
 /* USER CODE END PD */
 
@@ -60,14 +60,21 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-uint16_t adc_buf[ADC_BUF_LEN] = {0};
+uint16_t adc_buf[ADC_BUF_LEN] = {
+    2048, 2305, 2557, 2802, 3034, 3251, 3450, 3626, 3777, 3901, 3995, 4059, 4091, 4091, 4059,
+    3995, 3901, 3777, 3626, 3450, 3251, 3034, 2802, 2557, 2305, 2048, 1791, 1539, 1294, 1062,
+    845,  646,  470,  319,  195,  101,  37,   5,    5,    37,   101,  195,  319,  470,  646,
+    845,  1062, 1294, 1539, 1791, 2048, 2305, 2557, 2802, 3034, 3251, 3450, 3626, 3777, 3901,
+    3995, 4059, 4091, 4091, 4059, 3995, 3901, 3777, 3626, 3450, 3251, 3034, 2802, 2557, 2305,
+    2048, 1791, 1539, 1294, 1062, 845,  646,  470,  319,  195,  101,  37,   5,    5,    37,
+    101,  195,  319,  470,  646,  845,  1062, 1294, 1539, 1791, 2048,
+};
 
-arm_rfft_instance_q15 fft_instance;
+arm_rfft_fast_instance_f32 fft_instance;
 
-q15_t fft_result[FFT_LENGTH] = {0};
-
-q15_t fft_out_q15[FFT_LENGTH * 2];
-q15_t fft_mag_q15[FFT_LENGTH / 2];
+float32_t fft_result[FFT_LENGTH] = {0};
+float32_t fft_out[FFT_LENGTH * 2];
+float32_t fft_mag[FFT_LENGTH / 2];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -132,9 +139,7 @@ int main(void) {
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
 
-  // arm_rfft_fast_init_f32(&fft_instance, FFT_LENGTH);
-
-  arm_rfft_init_q15(&fft_instance, FFT_LENGTH, 0, 1);
+  arm_rfft_fast_init_f32(&fft_instance, FFT_LENGTH);
 
   // HAL_TIM_Base_Start(&htim2);
   // HAL_ADC_Start_DMA(&hadc1, (uint32_t *)adc_buf, ADC_BUF_LEN);
@@ -156,45 +161,6 @@ int main(void) {
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-
-  uint32_t start, stop, cycles_float, cycles_q15;
-
-  float32_t srcA_f32[FFT_LENGTH];
-  float32_t srcB_f32[FFT_LENGTH];
-  float32_t dst_f32[FFT_LENGTH];
-  float32_t rms_f32;
-
-  q15_t srcA_q15[FFT_LENGTH];
-  q15_t srcB_q15[FFT_LENGTH];
-  q15_t dst_q15[FFT_LENGTH];
-  q15_t rms_q15;
-
-  // Preencha os vetores com dados de teste
-  for (int i = 0; i < FFT_LENGTH; i++) {
-    srcA_f32[i] = arm_sin_f32(2 * PI * i / FFT_LENGTH);
-    srcB_f32[i] = arm_cos_f32(2 * PI * i / FFT_LENGTH);
-  }
-  // Converta para Q15
-  arm_float_to_q15(srcA_f32, srcA_q15, FFT_LENGTH);
-  arm_float_to_q15(srcB_f32, srcB_q15, FFT_LENGTH);
-
-  // --- Benchmark FLOAT ---
-  start = DWT->CYCCNT;
-  arm_mult_f32(srcA_f32, srcB_f32, dst_f32, FFT_LENGTH);
-  arm_rms_f32(dst_f32, FFT_LENGTH, &rms_f32);
-  stop = DWT->CYCCNT;
-  cycles_float = stop - start;
-
-  // --- Benchmark Q15 ---
-  start = DWT->CYCCNT;
-  arm_mult_q15(srcA_q15, srcB_q15, dst_q15, FFT_LENGTH);
-  arm_rms_q15(dst_q15, FFT_LENGTH, &rms_q15);
-  stop = DWT->CYCCNT;
-  cycles_q15 = stop - start;
-
-  // Resultado: envie por UART, debugger, etc.
-  printf("FLOAT: %lu ciclos, resultado RMS: %f\r\n", cycles_float, rms_f32);
-  printf("Q15:   %lu ciclos, resultado RMS: %d\r\n", cycles_q15, rms_q15);
 
   while (1) {
     // Inicia conversão ADC
@@ -285,36 +251,30 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc) {
 void getPowerMetrics(_Bool firstHalf) {
   int maxLength = ADC_BUF_LEN / 2;
 
-  // Converts to Q15
-  q15_t buffer_rms[FFT_LENGTH] = {0};
+  // Converte para float
+  float32_t buffer_rms[FFT_LENGTH] = {0};
   for (int i = 0; i < FFT_LENGTH; i++) {
     if (firstHalf) {
       if (i >= maxLength) {
         buffer_rms[i] = 0;
       } else {
-        buffer_rms[i] = convert_adc_to_q15(adc_buf[i]);
+        buffer_rms[i] = convert_adc_to_float(adc_buf[i]);
       }
     } else {
       if (i >= maxLength) {
         buffer_rms[i] = 0;
       } else {
-        buffer_rms[i] = convert_adc_to_q15(adc_buf[i + maxLength]);
+        buffer_rms[i] = convert_adc_to_float(adc_buf[i + maxLength]);
       }
     }
   }
 
   // FFT - Modifica o array de entrada
-  arm_rfft_q15(&fft_instance, buffer_rms, fft_out_q15);
-  arm_cmplx_mag_q15(fft_out_q15, fft_mag_q15, FFT_LENGTH / 2);
+  arm_rfft_fast_f32(&fft_instance, buffer_rms, fft_out, 0);
+  arm_cmplx_mag_f32(fft_out, fft_mag, FFT_LENGTH / 2);
 
-  volatile q15_t teste[100] = {0};
-
-  for (int i = 0; i < 100; i++) {
-    teste[i] = fft_mag_q15[i];
-  }
-
-  // Calculates RMS
-  volatile float rms_value_float = calculate_voltage_rms(buffer_rms, maxLength);
+  // Calcula RMS
+  volatile float32_t rms_value = calculate_voltage_rms(buffer_rms, maxLength);
 }
 
 /* USER CODE END 4 */
