@@ -124,10 +124,12 @@ def calcular_harmonicas(magnitudes, offset_basico=12):
 # Teste das funções
 valor_float = converter_para_float(MOCK_ADC_DATA)
 valor_float_offset = remove_offset(valor_float)
+valor_rms = calcular_rms(valor_float_offset)
+print(f"Valor RMS: {valor_rms:.4f}")
 
 # Completa o array com zeros até o tamanho do array original
-valor_float_offset = np.pad(
-    valor_float_offset, (0, 48), 'constant', constant_values=0)
+# valor_float_offset = np.pad(
+#     valor_float_offset, (0, 48), 'constant', constant_values=0)
 
 # Calcula FFT
 freqs, magnitudes = calcular_fft(valor_float_offset)
@@ -144,8 +146,8 @@ print(f"Tamanho do sinal: {len(valor_float_offset)}")
 print("\nResultados do THD:")
 print(f"THD Total: {thd_total*100:.2f}%")
 print("\nTHD Individual por Harmônica:")
-for i in range(1, 10):
-    print(f"Harmônica {i}: {thd_n[i]*100:.2f}%")
+# for i in range(1, 10):
+#     print(f"Harmônica {i}: {thd_n[i]*100:.2f}%")
 
 # Plota o espectro de frequência
 plt.figure(figsize=(12, 6))

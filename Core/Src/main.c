@@ -23,6 +23,7 @@
 #include "gpio.h"
 #include "tim.h"
 #include "usart.h"
+
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "arm_math.h"
@@ -98,8 +99,7 @@ int main(void) {
 
   /* MCU Configuration--------------------------------------------------------*/
 
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick.
-   */
+  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
 
   /* USER CODE BEGIN Init */
@@ -129,11 +129,13 @@ int main(void) {
   MX_ADC1_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
+  HAL_TIM_Base_Start(&htim2);
+  HAL_ADC_Start_DMA(&hadc1, (uint32_t *)adc_buf, ADC_BUF_LEN);
 
   arm_rfft_fast_init_f32(&fft_instance, FFT_LENGTH);
 
-  getPowerMetrics(true);
-  getPowerMetrics(false);
+  // getPowerMetrics(true);
+  // getPowerMetrics(false);
 
   /* USER CODE END 2 */
 
