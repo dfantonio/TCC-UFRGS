@@ -57,11 +57,41 @@ void calculate_fft(arm_rfft_fast_instance_f32 *fft_instance, float32_t *arr_in, 
 
   arm_rfft_fast_f32(fft_instance, arr_in, arr_temp, 0);
   arm_cmplx_mag_f32(arr_temp, arr_out_mag, length);
+
+  float32_t harmonics[50] = {0};
+
+  // Calculates the amplitudes of the first 50 harmonics.
+  int basicOffset = 12;
+  for (uint32_t i = 1; i <= 50; i++) {
+    harmonics[i - 1] = arr_out_mag[basicOffset * i - 2] + arr_out_mag[basicOffset * i - 1] +
+                       arr_out_mag[basicOffset * i] + arr_out_mag[basicOffset * i + 1] +
+                       arr_out_mag[basicOffset * i + 2];
+  }
+
+  calculate_voltage_thd(harmonics, 50);
 }
 
-float32_t calculate_voltage_thd(float32_t *buffer, uint32_t length) {
-  // TODO: Implementar cálculo THD da tensão
-  return 0.0f;
+float32_t calculate_thd(float32_t harmonics[], float32_t thd_n[], uint32_t length) {
+  float32_t fundamental = harmonics[0];
+  float32_t sum_squares = 0.0f;
+
+  // Calcula THD individual para cada harmônica
+  for (uint32_t i = 1; i < length; i++) {
+    thd_n[i] = harmonics[i] / fundamental;
+    sum_squares += harmonics[i] * harmonics[i];
+  }
+
+  // Calcula THD total
+  float32_t thd = sqrtf(sum_squares) / fundamental;
+
+  return thd;
+}
+
+float32_t calculate_voltage_thd(float32_t *harmonics, uint32_t length) {
+  float32_t thd_n[50] = {0};
+  float32_t total_thd = calculate_thd(harmonics, thd_n, 50);
+
+  return total_thd;
 }
 
 float32_t calculate_current_thd(float32_t *buffer, uint32_t length) {

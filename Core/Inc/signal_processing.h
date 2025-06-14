@@ -40,6 +40,15 @@ Quality_Results_t calculate_quality_parameters(float32_t *voltage_buffer, float3
                                                uint32_t length);
 
 /**
+ * @brief Calcula o THD de um sinal
+ * @param harmonics Ponteiro para o sinal de entrada (harmônicas)
+ * @param thd_n É o array de saida que guarda a distorção harmônica de cada harmônica
+ * @param length Tamanho do sinal
+ * @return returns the THD of the signal
+ */
+float32_t calculate_thd(float32_t *harmonics, float32_t *thd_n, uint32_t length);
+
+/**
  * @brief Calcula a FFT de um sinal
  * @param fft_instance Ponteiro para a instância da FFT
  * @param arr_in Ponteiro para o sinal de entrada
