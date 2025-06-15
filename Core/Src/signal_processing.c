@@ -7,6 +7,12 @@
 volatile static const float32_t VOLTAGE_SCALE = 188.566f;
 volatile static const float32_t CURRENT_SCALE = 85.7118f;
 
+// Arrays estáticos para processamento de THD
+static float32_t fft_temp[FFT_LENGTH * 2] = {0};
+static float32_t fft_mag[FFT_LENGTH / 2] = {0};
+static float32_t harmonics_v[50] = {0};
+static float32_t harmonics_i[50] = {0};
+
 float32_t convert_adc_to_float(uint16_t adc_value) {
   // Converte diretamente para float, removendo o offset
   return (float32_t)((adc_value) / (float32_t)ADC_MAX) * 3.3f;
@@ -77,23 +83,18 @@ Power_Results_t calculate_power(float32_t *voltage_buffer, float32_t *current_bu
 }
 
 void calculate_fft(arm_rfft_fast_instance_f32 *fft_instance, float32_t *arr_in, float32_t *arr_temp,
-                   float32_t *arr_out_mag, uint32_t length) {
+                   float32_t *arr_out_mag, float32_t *harmonics, uint32_t length) {
   apply_hanning_window(arr_in, length);
 
   arm_rfft_fast_f32(fft_instance, arr_in, arr_temp, 0);
   arm_cmplx_mag_f32(arr_temp, arr_out_mag, length);
 
-  float32_t harmonics[50] = {0};
-
-  // Calculates the amplitudes of the first 50 harmonics.
+  // Calcula as amplitudes das primeiras 50 harmônicas
   for (uint32_t i = 1; i <= 50; i++) {
     int idx = 60 * i / 4.88;
-
     harmonics[i - 1] = arr_out_mag[idx - 2] + arr_out_mag[idx - 1] + arr_out_mag[idx] +
                        arr_out_mag[idx + 1] + arr_out_mag[idx + 2];
   }
-
-  calculate_voltage_thd(harmonics, 50);
 }
 
 float32_t calculate_thd(float32_t harmonics[], float32_t thd_n[], uint32_t length) {
@@ -113,18 +114,24 @@ float32_t calculate_thd(float32_t harmonics[], float32_t thd_n[], uint32_t lengt
 }
 
 float32_t calculate_voltage_thd(float32_t *harmonics, uint32_t length) {
-  float32_t thd_n[50] = {1};
-  float32_t total_thd = calculate_thd(harmonics, thd_n, 50);
-
+  float32_t thd_n[50] = {0};
+  float32_t total_thd = calculate_thd(harmonics, thd_n, length);
+  thd_n[0] = 1;
+  memcpy(harmonics_v, thd_n, sizeof(float32_t) * length);
   return total_thd;
 }
 
-float32_t calculate_current_thd(float32_t *buffer, uint32_t length) {
-  // TODO: Implementar cálculo THD da corrente
-  return 0.0f;
+// TODO: Provavelmente posso passar direto harmonics como argumento e não preciso do thd_n
+float32_t calculate_current_thd(float32_t *harmonics, uint32_t length) {
+  float32_t thd_n[50] = {0};
+  float32_t total_thd = calculate_thd(harmonics, thd_n, length);
+  thd_n[0] = 1;
+  memcpy(harmonics_i, thd_n, sizeof(float32_t) * length);
+  return total_thd;
 }
 
 Quality_Results_t calculate_quality_parameters(float32_t *voltage_buffer, float32_t *current_buffer,
+                                               arm_rfft_fast_instance_f32 *fft_instance,
                                                uint32_t length) {
   Quality_Results_t results = {0};
 
@@ -132,14 +139,18 @@ Quality_Results_t calculate_quality_parameters(float32_t *voltage_buffer, float3
   results.rms_voltage = calculate_voltage_rms(voltage_buffer, length);
   results.rms_current = calculate_current_rms(current_buffer, length);
 
-  // Calcula frequência (assumindo frequência de amostragem de 10kHz)
-  const float32_t sampling_frequency = 10000.0f;
-  results.frequency = calculate_frequency(voltage_buffer, length, sampling_frequency);
+  // Calcula frequência
+  results.frequency = calculate_frequency(voltage_buffer, length, SAMPLING_FREQUENCY);
 
-  // calculate_fft(&fft_instance, voltage_buffer, fft_temp, fft_mag, FFT_LENGTH / 2);
-  // TODO: Implementar cálculos de THD
-  results.thd_voltage = 0.0f;
-  results.thd_current = 0.0f;
+  // Calcula THD da tensão
+  calculate_fft(fft_instance, voltage_buffer, fft_temp, fft_mag, harmonics_v, FFT_LENGTH / 2);
+  results.thd_voltage = calculate_voltage_thd(harmonics_v, 50);
+  memcpy(results.thd_v_n, harmonics_v, sizeof(harmonics_v));
+
+  // Calcula THD da corrente
+  calculate_fft(fft_instance, current_buffer, fft_temp, fft_mag, harmonics_i, FFT_LENGTH / 2);
+  results.thd_current = calculate_current_thd(harmonics_i, 50);
+  memcpy(results.thd_i_n, harmonics_i, sizeof(harmonics_i));
 
   return results;
 }

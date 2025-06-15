@@ -44,10 +44,6 @@
 #define ADC_BUF_LEN 4000
 // #define ADC_BUF_LEN 100
 
-// TODO: Deve ser 2048
-#define FFT_LENGTH 2048
-// #define FFT_LENGTH 64
-
 // Estrutura para armazenar as leituras dos dois canais
 typedef struct {
   uint16_t corrente;  // Canal 0 - Leitura de corrente
@@ -95,9 +91,6 @@ void getPowerMetrics(_Bool firstHalf);
 int main(void) {
 
   /* USER CODE BEGIN 1 */
-  // Inicializa a FPU
-  SCB->CPACR |= ((3UL << 10 * 2) | (3UL << 11 * 2));  // Habilita CP10 e CP11 (FPU)
-
   CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
   DWT->CYCCNT = 0;
   DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
@@ -242,7 +235,7 @@ void getPowerMetrics(_Bool firstHalf) {
 
   // Calcula parâmetros de qualidade
   Quality_Results_t quality =
-      calculate_quality_parameters(voltage_buffer, current_buffer, maxLength);
+      calculate_quality_parameters(voltage_buffer, current_buffer, &fft_instance, maxLength);
 
   // Calcula potências
   Power_Results_t power = calculate_power(voltage_buffer, current_buffer, maxLength);

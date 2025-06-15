@@ -1,5 +1,8 @@
 {
   "files.associations": {
     "arm_math.h": "c"
-  }
+  },
+
+  "files.encoding": "utf8",
+  "files.autoGuessEncoding": false
 }
