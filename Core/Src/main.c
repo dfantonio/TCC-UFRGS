@@ -29,6 +29,7 @@
 #include "arm_math.h"
 #include "mock_data.h"
 #include "signal_processing.h"
+#include "stdio.h"
 #include <stdbool.h>
 
 /* USER CODE END Includes */
@@ -47,6 +48,13 @@
 // TODO: Deve ser 2048
 #define FFT_LENGTH 2048
 // #define FFT_LENGTH 64
+
+// Estrutura para armazenar as leituras dos dois canais
+typedef struct {
+  uint16_t corrente;  // Canal 0 - Leitura de corrente
+  uint16_t tensao;    // Canal 1 - Leitura de tensão
+} ADC_Leituras_t;
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -57,7 +65,7 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-uint16_t adc_buf[ADC_BUF_LEN];
+ADC_Leituras_t adc_buf[ADC_BUF_LEN];
 
 arm_rfft_fast_instance_f32 fft_instance;
 
@@ -106,11 +114,6 @@ int main(void) {
   // volatile uint32_t start_cycles = DWT->CYCCNT;
   // volatile uint32_t elapsed_cycles = DWT->CYCCNT - start_cycles;
 
-  // q15_t buffer_rms[ADC_BUF_LEN] = {0};
-  // for (int i = 0; i < ADC_BUF_LEN; i++) {
-  //   buffer_rms[i] = convert_adc_to_q15(adc_buf[i]);
-  // }
-
   /* USER CODE END Init */
 
   /* Configure the system clock */
@@ -130,7 +133,7 @@ int main(void) {
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
   HAL_TIM_Base_Start(&htim2);
-  HAL_ADC_Start_DMA(&hadc1, (uint32_t *)adc_buf, ADC_BUF_LEN);
+  HAL_ADC_Start_DMA(&hadc1, (uint32_t *)adc_buf, ADC_BUF_LEN * 2);
 
   arm_rfft_fast_init_f32(&fft_instance, FFT_LENGTH);
 
@@ -143,30 +146,6 @@ int main(void) {
   /* USER CODE BEGIN WHILE */
 
   while (1) {
-    // Inicia conversão ADC
-    // HAL_ADC_Start(&hadc1);
-
-    // Espera conversão completar
-    // if (HAL_ADC_PollForConversion(&hadc1, 100) == HAL_OK)
-    // {
-    //   // Lê valor do ADC
-    //   adc_value = HAL_ADC_GetValue(&hadc1);
-
-    //   // Formata mensagem
-    //   sprintf(tx_buff, "ADC Value: %d\r\n", adc_value);
-
-    //   // Envia pela UART
-    //   HAL_UART_Transmit(&huart2, (uint8_t *)tx_buff, strlen(tx_buff), 1000);
-    //   HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
-    // }
-
-    // // Desliga ADC para economizar energia
-    // HAL_ADC_Stop(&hadc1);
-
-    // // Aguarda 500ms antes da próxima leitura
-    // HAL_Delay(5);
-    // HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
-
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -232,35 +211,54 @@ void getPowerMetrics(_Bool firstHalf) {
   int maxLength = ADC_BUF_LEN / 2;
 
   // Converte para float
-  float32_t buffer_rms[FFT_LENGTH] = {0};
+  float32_t voltage_buffer[FFT_LENGTH] = {0};
+  float32_t current_buffer[FFT_LENGTH] = {0};
   for (int i = 0; i < FFT_LENGTH; i++) {
     if (firstHalf) {
       if (i >= maxLength) {
-        buffer_rms[i] = 0;
+        voltage_buffer[i] = 0;
+        current_buffer[i] = 0;
       } else {
-        buffer_rms[i] = convert_adc_to_float(adc_buf[i]);
+        voltage_buffer[i] = convert_adc_to_float(adc_buf[i].tensao);
+        current_buffer[i] = convert_adc_to_float(adc_buf[i].corrente);
       }
     } else {
       if (i >= maxLength) {
-        buffer_rms[i] = 0;
+        voltage_buffer[i] = 0;
+        current_buffer[i] = 0;
       } else {
-        buffer_rms[i] = convert_adc_to_float(adc_buf[i + maxLength]);
+        voltage_buffer[i] = convert_adc_to_float(adc_buf[i].tensao);
+        current_buffer[i] = convert_adc_to_float(adc_buf[i].corrente);
       }
     }
   }
 
-  remove_offset(buffer_rms, maxLength);
+  remove_offset(voltage_buffer, maxLength);
+  remove_offset(current_buffer, maxLength);
 
   // Calcula RMS
-  volatile float32_t rms_value = calculate_voltage_rms(buffer_rms, maxLength);
+  float32_t rms_voltage = calculate_voltage_rms(voltage_buffer, maxLength);
+  float32_t rms_current = calculate_current_rms(current_buffer, maxLength);
 
   // Calcula FFT
-  calculate_fft(&fft_instance, buffer_rms, fft_temp, fft_mag, FFT_LENGTH / 2);
-  // calculate_fft(&fft_instance, buffer_rms, fft_temp, fft_mag, 2000 / 2);
+  calculate_fft(&fft_instance, voltage_buffer, fft_temp, fft_mag, FFT_LENGTH / 2);
 
   // FFT - Modifica o array de entrada
-  // arm_rfft_fast_f32(&fft_instance, buffer_rms, fft_temp, 0);
-  // arm_cmplx_mag_f32(fft_temp, fft_mag, FFT_LENGTH / 2);
+  arm_rfft_fast_f32(&fft_instance, voltage_buffer, fft_temp, 0);
+  arm_cmplx_mag_f32(fft_temp, fft_mag, FFT_LENGTH / 2);
+
+  char tx_buff[100] = {0};
+  // Formata mensagem
+  if (!firstHalf)
+    sprintf(tx_buff, "Primeira metade: %d; RMS voltage: %.2f; RMS current: %.2f\r\n", firstHalf,
+            rms_voltage, rms_current);
+
+  // Envia pela UART
+  HAL_UART_Transmit(&huart2, (uint8_t *)tx_buff, strlen(tx_buff), 1000);
+  HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
+
+  printf("RMS Voltage: %f\r\n", rms_voltage);
+  printf("RMS Current: %f\r\n", rms_current);
 }
 
 /* USER CODE END 4 */
