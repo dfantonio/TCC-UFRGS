@@ -32,4 +32,4 @@ Este projeto é um **Analisador de Qualidade de Energia** baseado no microcontro
 - Utilize **HAL ou LL drivers**, mas evite dependência do STM32CubeMX após configuração inicial.
 - Comente e documente bem funções que envolvem matemática ou manipulação de buffers.
 - Sugira melhorias se algum trecho de código estiver com baixa performance, imprecisão ou violar boas práticas embarcadas.
-
+- SEMPRE busque autorização explícita para alterações no código.

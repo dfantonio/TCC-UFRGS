@@ -34,8 +34,9 @@ float32_t calculate_voltage_rms(float32_t *buffer, uint32_t length);
 float32_t calculate_current_rms(float32_t *buffer, uint32_t length);
 Power_Results_t calculate_power(float32_t *voltage_buffer, float32_t *current_buffer,
                                 uint32_t length);
-float32_t calculate_voltage_thd(float32_t *buffer, uint32_t length);
+float32_t calculate_voltage_thd(float32_t *harmonics, uint32_t length);
 float32_t calculate_current_thd(float32_t *buffer, uint32_t length);
+float32_t calculate_frequency(float32_t *buffer, uint32_t length, float32_t sampling_frequency);
 Quality_Results_t calculate_quality_parameters(float32_t *voltage_buffer, float32_t *current_buffer,
                                                uint32_t length);
 

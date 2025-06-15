@@ -104,6 +104,60 @@ float32_t calculate_current_thd(float32_t *buffer, uint32_t length) {
 Quality_Results_t calculate_quality_parameters(float32_t *voltage_buffer, float32_t *current_buffer,
                                                uint32_t length) {
   Quality_Results_t results = {0};
-  // TODO: Implementar cálculos de qualidade
+
+  // Calcula RMS
+  results.rms_voltage = calculate_voltage_rms(voltage_buffer, length);
+  results.rms_current = calculate_current_rms(current_buffer, length);
+
+  // Calcula frequência (assumindo frequência de amostragem de 10kHz)
+  const float32_t sampling_frequency = 10000.0f;
+  results.frequency = calculate_frequency(voltage_buffer, length, sampling_frequency);
+
+  // calculate_fft(&fft_instance, voltage_buffer, fft_temp, fft_mag, FFT_LENGTH / 2);
+  // TODO: Implementar cálculos de THD
+  results.thd_voltage = 0.0f;
+  results.thd_current = 0.0f;
+
   return results;
+}
+
+float32_t calculate_frequency(float32_t *buffer, uint32_t length, float32_t sampling_frequency) {
+  uint32_t zero_crossings = 0;
+  float32_t total_period = 0.0f;
+  float32_t prev_sample = buffer[0];
+  float32_t prev_index = 0.0f;
+
+  // Conta os cruzamentos por zero com interpolação linear
+  for (uint32_t i = 1; i < length; i++) {
+    float32_t current_sample = buffer[i];
+
+    // Detecta cruzamento por zero (mudança de sinal)
+    if ((prev_sample < 0 && current_sample >= 0) || (prev_sample > 0 && current_sample <= 0)) {
+      // Calcula o ponto exato do cruzamento por zero usando interpolação linear
+      float32_t crossing_point =
+          (float32_t)(i - 1) + (-prev_sample) / (current_sample - prev_sample);
+
+      if (zero_crossings > 0) {
+        // Calcula o período entre este cruzamento e o anterior
+        float32_t period = crossing_point - prev_index;
+        total_period += period;
+      }
+
+      prev_index = crossing_point;
+      zero_crossings++;
+    }
+
+    prev_sample = current_sample;
+  }
+
+  // Calcula a frequência média
+  // Se não houver cruzamentos suficientes, retorna 0
+  if (zero_crossings < 2) {
+    return 0.0f;
+  }
+
+  float32_t avg_period = total_period / (zero_crossings - 1);
+  float32_t frequency = sampling_frequency / (avg_period * 2);
+
+  return frequency;
 }

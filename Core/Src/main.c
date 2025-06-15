@@ -240,29 +240,23 @@ void getPowerMetrics(_Bool firstHalf) {
   remove_offset(voltage_buffer, maxLength);
   remove_offset(current_buffer, maxLength);
 
-  // Calcula RMS
-  float32_t rms_voltage = calculate_voltage_rms(voltage_buffer, maxLength);
-  float32_t rms_current = calculate_current_rms(current_buffer, maxLength);
-
-  // Calcula FFT
-  calculate_fft(&fft_instance, voltage_buffer, fft_temp, fft_mag, FFT_LENGTH / 2);
-
-  // FFT - Modifica o array de entrada
-  arm_rfft_fast_f32(&fft_instance, voltage_buffer, fft_temp, 0);
-  arm_cmplx_mag_f32(fft_temp, fft_mag, FFT_LENGTH / 2);
+  // Calcula parâmetros de qualidade
+  Quality_Results_t quality =
+      calculate_quality_parameters(voltage_buffer, current_buffer, maxLength);
 
   char tx_buff[100] = {0};
   // Formata mensagem
   if (!firstHalf)
-    sprintf(tx_buff, "Primeira metade: %d; RMS voltage: %.2f; RMS current: %.2f\r\n", firstHalf,
-            rms_voltage, rms_current);
+    sprintf(tx_buff, "RMS voltage: %.2fV; RMS current: %.2fA; Frequency: %.2fHz\r\n",
+            quality.rms_voltage, quality.rms_current, quality.frequency);
 
   // Envia pela UART
   HAL_UART_Transmit(&huart2, (uint8_t *)tx_buff, strlen(tx_buff), 1000);
   HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
 
-  printf("RMS Voltage: %f\r\n", rms_voltage);
-  printf("RMS Current: %f\r\n", rms_current);
+  printf("RMS Voltage: %f\r\n", quality.rms_voltage);
+  printf("RMS Current: %f\r\n", quality.rms_current);
+  printf("Frequency: %f\r\n", quality.frequency);
 }
 
 /* USER CODE END 4 */
