@@ -3,6 +3,10 @@
 #define ADC_MAX 4095
 #define ADC_OFFSET 2048
 
+// Fatores de escala para tensão e corrente
+volatile static const float32_t VOLTAGE_SCALE = 188.566f;
+volatile static const float32_t CURRENT_SCALE = 85.7118f;
+
 float32_t convert_adc_to_float(uint16_t adc_value) {
   // Converte diretamente para float, removendo o offset
   return (float32_t)((adc_value) / (float32_t)ADC_MAX) * 3.3f;
@@ -31,25 +35,44 @@ void apply_hanning_window(float32_t *buffer, uint32_t length) {
 }
 
 float32_t calculate_voltage_rms(float32_t *buffer, uint32_t length) {
-  volatile static const float32_t scale_factor = 188.566;
-
   float32_t rms_value;
   arm_rms_f32(buffer, length, &rms_value);
-  return rms_value * scale_factor;
+  return rms_value * VOLTAGE_SCALE;
 }
 
 float32_t calculate_current_rms(float32_t *buffer, uint32_t length) {
-  volatile static const float32_t scale_factor = 85.7118;
-
   float32_t rms_value;
   arm_rms_f32(buffer, length, &rms_value);
-  return rms_value * scale_factor;
+  return rms_value * CURRENT_SCALE;
 }
 
 Power_Results_t calculate_power(float32_t *voltage_buffer, float32_t *current_buffer,
                                 uint32_t length) {
   Power_Results_t results = {0};
-  // TODO: Implementar cálculos de potência
+
+  // Calcula potência ativa usando o método do domínio do tempo
+  float32_t sum_power = 0.0f;
+  for (uint32_t i = 0; i < length; i++) {
+    // Aplica os fatores de escala nas amostras
+    float32_t scaled_voltage = voltage_buffer[i] * VOLTAGE_SCALE;
+    float32_t scaled_current = current_buffer[i] * CURRENT_SCALE;
+    sum_power += scaled_voltage * scaled_current;
+  }
+  results.active_power = sum_power / length;
+
+  // Calcula potência aparente usando os valores RMS
+  float32_t v_rms = calculate_voltage_rms(voltage_buffer, length);
+  float32_t i_rms = calculate_current_rms(current_buffer, length);
+  results.apparent_power = v_rms * i_rms;
+
+  // Calcula potência reativa usando o teorema de Pitágoras
+  float32_t active_squared = results.active_power * results.active_power;
+  float32_t apparent_squared = results.apparent_power * results.apparent_power;
+  results.reactive_power = sqrtf(apparent_squared - active_squared);
+
+  // Calcula fator de potência
+  results.power_factor = results.active_power / results.apparent_power;
+
   return results;
 }
 

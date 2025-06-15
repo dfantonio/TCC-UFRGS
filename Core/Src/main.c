@@ -244,11 +244,18 @@ void getPowerMetrics(_Bool firstHalf) {
   Quality_Results_t quality =
       calculate_quality_parameters(voltage_buffer, current_buffer, maxLength);
 
-  char tx_buff[100] = {0};
+  // Calcula potências
+  Power_Results_t power = calculate_power(voltage_buffer, current_buffer, maxLength);
+
+  char tx_buff[200] = {0};
   // Formata mensagem
   if (!firstHalf)
-    sprintf(tx_buff, "RMS voltage: %.2fV; RMS current: %.2fA; Frequency: %.2fHz\r\n",
-            quality.rms_voltage, quality.rms_current, quality.frequency);
+    sprintf(tx_buff,
+            "RMS voltage: %.2fV; RMS current: %.2fA; Frequency: %.2fHz\r\n"
+            "Active Power: %.2fW; Reactive Power: %.2fVAR; Apparent Power: %.2fVA\r\n"
+            "Power Factor: %.2f\r\n",
+            quality.rms_voltage, quality.rms_current, quality.frequency, power.active_power,
+            power.reactive_power, power.apparent_power, power.power_factor);
 
   // Envia pela UART
   HAL_UART_Transmit(&huart2, (uint8_t *)tx_buff, strlen(tx_buff), 1000);
@@ -257,6 +264,10 @@ void getPowerMetrics(_Bool firstHalf) {
   printf("RMS Voltage: %f\r\n", quality.rms_voltage);
   printf("RMS Current: %f\r\n", quality.rms_current);
   printf("Frequency: %f\r\n", quality.frequency);
+  printf("Active Power: %f\r\n", power.active_power);
+  printf("Reactive Power: %f\r\n", power.reactive_power);
+  printf("Apparent Power: %f\r\n", power.apparent_power);
+  printf("Power Factor: %f\r\n", power.power_factor);
 }
 
 /* USER CODE END 4 */
