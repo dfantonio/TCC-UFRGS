@@ -27,7 +27,6 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "arm_math.h"
-#include "mock_data.h"
 #include "signal_processing.h"
 #include "stdio.h"
 #include <stdbool.h>
@@ -54,6 +53,9 @@ typedef struct {
   uint16_t corrente;  // Canal 0 - Leitura de corrente
   uint16_t tensao;    // Canal 1 - Leitura de tensão
 } ADC_Leituras_t;
+
+// Declaração externa do array de dados mockados
+extern const ADC_Leituras_t mock_adc_data[4000];
 
 /* USER CODE END PD */
 
@@ -132,13 +134,15 @@ int main(void) {
   MX_ADC1_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
-  HAL_TIM_Base_Start(&htim2);
-  HAL_ADC_Start_DMA(&hadc1, (uint32_t *)adc_buf, ADC_BUF_LEN * 2);
+
+  // Pausa o ADC para utilizar mocks
+  // HAL_TIM_Base_Start(&htim2);
+  // HAL_ADC_Start_DMA(&hadc1, (uint32_t *)adc_buf, ADC_BUF_LEN * 2);
 
   arm_rfft_fast_init_f32(&fft_instance, FFT_LENGTH);
 
-  // getPowerMetrics(true);
-  // getPowerMetrics(false);
+  getPowerMetrics(true);
+  getPowerMetrics(false);
 
   /* USER CODE END 2 */
 

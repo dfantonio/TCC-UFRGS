@@ -31,7 +31,7 @@ void apply_hanning_window(float32_t *buffer, uint32_t length) {
 }
 
 float32_t calculate_voltage_rms(float32_t *buffer, uint32_t length) {
-  volatile static const float32_t scale_factor = 1.00f;
+  volatile static const float32_t scale_factor = 188.566;
 
   float32_t rms_value;
   arm_rms_f32(buffer, length, &rms_value);
@@ -39,9 +39,11 @@ float32_t calculate_voltage_rms(float32_t *buffer, uint32_t length) {
 }
 
 float32_t calculate_current_rms(float32_t *buffer, uint32_t length) {
+  volatile static const float32_t scale_factor = 85.7118;
+
   float32_t rms_value;
   arm_rms_f32(buffer, length, &rms_value);
-  return rms_value;
+  return rms_value * scale_factor;
 }
 
 Power_Results_t calculate_power(float32_t *voltage_buffer, float32_t *current_buffer,
