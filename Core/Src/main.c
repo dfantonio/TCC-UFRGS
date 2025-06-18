@@ -96,7 +96,7 @@ int main(void) {
   DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
 
   // Inicializa o buffer com dados mockados
-  memcpy(adc_buf, mock_adc_data, sizeof(adc_buf));
+  // memcpy(adc_buf, mock_adc_data, sizeof(adc_buf));
 
   /* USER CODE END 1 */
 
@@ -128,14 +128,13 @@ int main(void) {
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
 
-  // Pausa o ADC para utilizar mocks
-  // HAL_TIM_Base_Start(&htim2);
-  // HAL_ADC_Start_DMA(&hadc1, (uint32_t *)adc_buf, ADC_BUF_LEN * 2);
+  HAL_TIM_Base_Start(&htim2);
+  HAL_ADC_Start_DMA(&hadc1, (uint32_t *)adc_buf, ADC_BUF_LEN * 2);
 
   arm_rfft_fast_init_f32(&fft_instance, FFT_LENGTH);
 
-  getPowerMetrics(true);
-  getPowerMetrics(false);
+  // getPowerMetrics(true);
+  // getPowerMetrics(false);
 
   /* USER CODE END 2 */
 
@@ -242,17 +241,21 @@ void getPowerMetrics(_Bool firstHalf) {
 
   char tx_buff[200] = {0};
   // Formata mensagem
-  if (!firstHalf)
+  if (!firstHalf) {
     sprintf(tx_buff,
-            "RMS voltage: %.2fV; RMS current: %.2fA; Frequency: %.2fHz\r\n"
-            "Active Power: %.2fW; Reactive Power: %.2fVAR; Apparent Power: %.2fVA\r\n"
-            "Power Factor: %.2f\r\n",
+            "V_rms: %.2f V; I_rms: %.2fA; Freq: %.2fHz; "
+            "P_act: %.2fW; P_react: %.2fVAR; P_app: %.2fVA; "
+            "PF: %.2f\r\n",
             quality.rms_voltage, quality.rms_current, quality.frequency, power.active_power,
             power.reactive_power, power.apparent_power, power.power_factor);
 
-  // Envia pela UART
-  HAL_UART_Transmit(&huart2, (uint8_t *)tx_buff, strlen(tx_buff), 1000);
-  HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
+    // sprintf(tx_buff, "V_rms: %.2f V; I_rms: %.2fA; Freq: %.2fHz;\r\n ", quality.rms_voltage,
+    //         quality.rms_current, quality.frequency);
+
+    // Envia pela UART
+    HAL_UART_Transmit(&huart2, (uint8_t *)tx_buff, strlen(tx_buff), 1000);
+    HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
+  }
 
   printf("RMS Voltage: %f\r\n", quality.rms_voltage);
   printf("RMS Current: %f\r\n", quality.rms_current);

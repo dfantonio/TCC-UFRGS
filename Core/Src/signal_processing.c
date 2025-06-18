@@ -4,8 +4,8 @@
 #define ADC_OFFSET 2048
 
 // Fatores de escala para tensão e corrente
-volatile static const float32_t VOLTAGE_SCALE = 188.566f;
-volatile static const float32_t CURRENT_SCALE = 85.7118f;
+volatile static const float32_t VOLTAGE_SCALE = 316.0f;
+volatile static const float32_t CURRENT_SCALE = 114.66f;
 
 // Arrays estáticos para processamento de THD
 static float32_t fft_temp[FFT_LENGTH * 2] = {0};
@@ -155,7 +155,7 @@ Quality_Results_t calculate_quality_parameters(float32_t *voltage_buffer, float3
   return results;
 }
 
-float32_t calculate_frequency(float32_t *buffer, uint32_t length, float32_t sampling_frequency) {
+float32_t calculate_frequency(float32_t buffer[], uint32_t length, float32_t sampling_frequency) {
   uint32_t zero_crossings = 0;
   float32_t total_period = 0.0f;
   float32_t prev_sample = buffer[0];
@@ -174,7 +174,11 @@ float32_t calculate_frequency(float32_t *buffer, uint32_t length, float32_t samp
       if (zero_crossings > 0) {
         // Calcula o período entre este cruzamento e o anterior
         float32_t period = crossing_point - prev_index;
-        total_period += period;
+
+        // Evita valores muito pequenos (ruidos)
+        if (period > 40) {
+          total_period += period;
+        }
       }
 
       prev_index = crossing_point;
@@ -191,7 +195,7 @@ float32_t calculate_frequency(float32_t *buffer, uint32_t length, float32_t samp
   }
 
   float32_t avg_period = total_period / (zero_crossings - 1);
-  float32_t frequency = sampling_frequency / (avg_period * 2);
+  volatile float32_t frequency = sampling_frequency / (avg_period * 2);
 
   return frequency;
 }
