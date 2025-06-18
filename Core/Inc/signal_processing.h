@@ -70,4 +70,7 @@ float32_t calculate_thd(float32_t *harmonics, float32_t *thd_n, uint32_t length)
 void calculate_fft(arm_rfft_fast_instance_f32 *fft_instance, float32_t *arr_in, float32_t *arr_temp,
                    float32_t *arr_out_mag, float32_t *harmonics, uint32_t length);
 
+void apply_moving_average_filter(float32_t *input, float32_t *output, uint32_t length,
+                                 uint32_t window_size);
+
 #endif /* __SIGNAL_PROCESSING_H */

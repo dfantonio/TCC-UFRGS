@@ -209,6 +209,12 @@ void getPowerMetrics(_Bool firstHalf) {
   // Converte para float
   float32_t voltage_buffer[FFT_LENGTH] = {0};
   float32_t current_buffer[FFT_LENGTH] = {0};
+  float32_t filtered_voltage[FFT_LENGTH] = {0};
+  float32_t filtered_current[FFT_LENGTH] = {0};
+
+  // Define o tamanho da janela do filtro (ajuste conforme necessário)
+  const uint32_t WINDOW_SIZE = 5;
+
   for (int i = 0; i < FFT_LENGTH; i++) {
     if (firstHalf) {
       if (i >= maxLength) {
@@ -229,28 +235,36 @@ void getPowerMetrics(_Bool firstHalf) {
     }
   }
 
-  remove_offset(voltage_buffer, maxLength);
-  remove_offset(current_buffer, maxLength);
+  // Aplica o filtro de média móvel
+  apply_moving_average_filter(voltage_buffer, filtered_voltage, FFT_LENGTH, WINDOW_SIZE);
+  apply_moving_average_filter(current_buffer, filtered_current, FFT_LENGTH, WINDOW_SIZE);
 
-  // Calcula parâmetros de qualidade
+  // Remove o offset dos sinais filtrados
+  remove_offset(filtered_voltage, maxLength);
+  remove_offset(filtered_current, maxLength);
+
+  // Calcula potências usando os sinais filtrados
+  Power_Results_t power = calculate_power(filtered_voltage, filtered_current, maxLength);
+
+  // Calcula parâmetros de qualidade usando os sinais filtrados
   Quality_Results_t quality =
-      calculate_quality_parameters(voltage_buffer, current_buffer, &fft_instance, maxLength);
-
-  // Calcula potências
-  Power_Results_t power = calculate_power(voltage_buffer, current_buffer, maxLength);
+      calculate_quality_parameters(filtered_voltage, filtered_current, &fft_instance, maxLength);
 
   char tx_buff[200] = {0};
   // Formata mensagem
   if (!firstHalf) {
-    sprintf(tx_buff,
-            "V_rms: %.2f V; I_rms: %.2fA; Freq: %.2fHz; "
-            "P_act: %.2fW; P_react: %.2fVAR; P_app: %.2fVA; "
-            "PF: %.2f\r\n",
-            quality.rms_voltage, quality.rms_current, quality.frequency, power.active_power,
-            power.reactive_power, power.apparent_power, power.power_factor);
+    // sprintf(tx_buff,
+    //         "V_rms: %.2f V; I_rms: %.2fA; Freq: %.2fHz; "
+    //         "P_act: %.2fW; P_react: %.2fVAR; P_app: %.2fVA; "
+    //         "PF: %.2f\r\n",
+    //         quality.rms_voltage, quality.rms_current, quality.frequency, power.active_power,
+    //         power.reactive_power, power.apparent_power, power.power_factor);
 
-    // sprintf(tx_buff, "V_rms: %.2f V; I_rms: %.2fA; Freq: %.2fHz;\r\n ", quality.rms_voltage,
-    //         quality.rms_current, quality.frequency);
+    sprintf(
+        tx_buff,
+        "V_rms: %.2f V; I_rms: %.2fA; Freq: %.2fHz; P: %.2fW; Q: %.2fVAR; S: %.2fVA; PF: %.2f\r\n ",
+        quality.rms_voltage, quality.rms_current, quality.frequency, power.active_power,
+        power.reactive_power, power.apparent_power, power.power_factor);
 
     // Envia pela UART
     HAL_UART_Transmit(&huart2, (uint8_t *)tx_buff, strlen(tx_buff), 1000);

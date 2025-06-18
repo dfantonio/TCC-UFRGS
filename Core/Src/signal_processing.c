@@ -1,11 +1,12 @@
 #include "signal_processing.h"
+#include <stdbool.h>
 
 #define ADC_MAX 4095
 #define ADC_OFFSET 2048
 
 // Fatores de escala para tensÃ£o e corrente
 volatile static const float32_t VOLTAGE_SCALE = 316.0f;
-volatile static const float32_t CURRENT_SCALE = 114.66f;
+volatile static const float32_t CURRENT_SCALE = 33.9f;
 
 // Arrays estÃ¡ticos para processamento de THD
 static float32_t fft_temp[FFT_LENGTH * 2] = {0};
@@ -156,46 +157,129 @@ Quality_Results_t calculate_quality_parameters(float32_t *voltage_buffer, float3
 }
 
 float32_t calculate_frequency(float32_t buffer[], uint32_t length, float32_t sampling_frequency) {
-  uint32_t zero_crossings = 0;
-  float32_t total_period = 0.0f;
-  float32_t prev_sample = buffer[0];
+  // Constantes para configuração
+  const float32_t HYSTERESIS = 0.15f;  // Aumentado para 15% da amplitude
+  const float32_t MIN_PERIOD = 45.0f;  // Aumentado para rejeitar frequências > 65Hz
+  const float32_t MAX_PERIOD = 95.0f;  // Ajustado para rejeitar frequências < 55Hz
+  const uint32_t MA_WINDOW = 7;        // Aumentado para 7 pontos
+
+  // Array para armazenar os períodos válidos
+  float32_t valid_periods[50] = {0};
+  uint32_t valid_period_count = 0;
+
+  // Aplica filtro de média móvel
+  float32_t filtered_buffer[FFT_LENGTH] = {0};
+  for (uint32_t i = MA_WINDOW; i < length; i++) {
+    float32_t sum = 0;
+    for (uint32_t j = 0; j < MA_WINDOW; j++) {
+      sum += buffer[i - j];
+    }
+    filtered_buffer[i] = sum / MA_WINDOW;
+  }
+
+  // Encontra a amplitude pico a pico para normalizar a histerese
+  float32_t max_val = 0;
+  float32_t min_val = 0;
+  for (uint32_t i = 0; i < length; i++) {
+    if (filtered_buffer[i] > max_val) max_val = filtered_buffer[i];
+    if (filtered_buffer[i] < min_val) min_val = filtered_buffer[i];
+  }
+  float32_t pp_amplitude = max_val - min_val;
+  float32_t hysteresis_band = pp_amplitude * HYSTERESIS;
+
+  // Detecção de cruzamento por zero com histerese
+  float32_t prev_sample = filtered_buffer[0];
   float32_t prev_index = 0.0f;
+  bool was_positive = prev_sample > 0;
 
-  // Conta os cruzamentos por zero com interpolaÃ§Ã£o linear
   for (uint32_t i = 1; i < length; i++) {
-    float32_t current_sample = buffer[i];
+    float32_t current_sample = filtered_buffer[i];
 
-    // Detecta cruzamento por zero (mudanÃ§a de sinal)
-    if ((prev_sample < 0 && current_sample >= 0) || (prev_sample > 0 && current_sample <= 0)) {
-      // Calcula o ponto exato do cruzamento por zero usando interpolaÃ§Ã£o linear
+    // Detecta cruzamento por zero com histerese
+    if (was_positive && current_sample < -hysteresis_band) {
+      // Cruzamento negativo
       float32_t crossing_point =
           (float32_t)(i - 1) + (-prev_sample) / (current_sample - prev_sample);
 
-      if (zero_crossings > 0) {
-        // Calcula o perÃ­odo entre este cruzamento e o anterior
+      if (prev_index > 0) {
         float32_t period = crossing_point - prev_index;
 
-        // Evita valores muito pequenos (ruidos)
-        if (period > 40) {
-          total_period += period;
+        // Valida o período
+        if (period >= MIN_PERIOD && period <= MAX_PERIOD) {
+          if (valid_period_count < 50) {
+            valid_periods[valid_period_count++] = period;
+          }
         }
       }
 
       prev_index = crossing_point;
-      zero_crossings++;
+      was_positive = false;
+    } else if (!was_positive && current_sample > hysteresis_band) {
+      // Cruzamento positivo
+      float32_t crossing_point =
+          (float32_t)(i - 1) + (-prev_sample) / (current_sample - prev_sample);
+
+      if (prev_index > 0) {
+        float32_t period = crossing_point - prev_index;
+
+        // Valida o período
+        if (period >= MIN_PERIOD && period <= MAX_PERIOD) {
+          if (valid_period_count < 50) {
+            valid_periods[valid_period_count++] = period;
+          }
+        }
+      }
+
+      prev_index = crossing_point;
+      was_positive = true;
     }
 
     prev_sample = current_sample;
   }
 
-  // Calcula a frequÃªncia mÃ©dia
-  // Se nÃ£o houver cruzamentos suficientes, retorna 0
-  if (zero_crossings < 2) {
+  // Se não houver períodos válidos suficientes, retorna 0
+  if (valid_period_count < 2) {
     return 0.0f;
   }
 
-  float32_t avg_period = total_period / (zero_crossings - 1);
-  volatile float32_t frequency = sampling_frequency / (avg_period * 2);
+  // Calcula a média ponderada dos períodos
+  float32_t total_weight = 0.0f;
+  float32_t weighted_sum = 0.0f;
+
+  // Frequência esperada de 60Hz
+  const float32_t EXPECTED_PERIOD = 50.0f;  // 10000Hz/60Hz/2 = 83.33, ajustado para 50
+
+  for (uint32_t i = 0; i < valid_period_count; i++) {
+    // Peso maior para períodos mais próximos de 60Hz
+    float32_t weight = 1.0f / (1.0f + fabsf(valid_periods[i] - EXPECTED_PERIOD));
+    weighted_sum += valid_periods[i] * weight;
+    total_weight += weight;
+  }
+
+  float32_t avg_period = weighted_sum / total_weight;
+  float32_t frequency = sampling_frequency / (avg_period * 2);
+
+  // // Validação final da frequência
+  // if (frequency < 55.0f || frequency > 65.0f) {
+  //   return 0.0f;  // Rejeita frequências fora da faixa esperada
+  // }
 
   return frequency;
+}
+
+void apply_moving_average_filter(float32_t *input, float32_t *output, uint32_t length,
+                                 uint32_t window_size) {
+  // Para os primeiros (window_size-1) elementos, não podemos calcular a média
+  for (uint32_t i = 0; i < window_size - 1; i++) {
+    output[i] = input[i];
+  }
+
+  // Calcula a média móvel para o resto do array
+  for (uint32_t i = window_size - 1; i < length; i++) {
+    float32_t sum = 0.0f;
+    for (uint32_t j = 0; j < window_size; j++) {
+      sum += input[i - j];
+    }
+    output[i] = sum / window_size;
+  }
 }
